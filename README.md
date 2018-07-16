@@ -5,3 +5,18 @@
 我很欣喜的找到了`https://github.com/leechristensen/GolangSSHServer`和`https://github.com/karfield/ssh2go`。  
 我决定拷贝`https://github.com/leechristensen/GolangSSHServer`的代码，然后在其基础上改吧改吧。  
 于是出现了这个repository。  
+
+
+## 其他说明
+你可能需要先设置代理，然后执行
+```
+go get -u -v github.com/zx9229/zxgo
+```
+其他的命令
+```
+go get -u -v golang.org/x/net
+```
+编译命令
+```
+CGO_ENABLED=0 go build -a -installsuffix cgo .
+```
