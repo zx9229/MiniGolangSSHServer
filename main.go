@@ -2,6 +2,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/binary"
 	"errors"
@@ -97,6 +98,7 @@ func helpMessage() string {
 func main() {
 	helpPtr := flag.Bool("help", false, helpMessage())
 	dataPtr := flag.String("base64", "", "base64 encoding data of config")
+	stdinPtr := flag.Bool("cin", false, "base64 encoding data of config")
 	flag.Parse()
 
 	if *helpPtr { //实际上,如果命令行参数里面有-help,应当走不到这里,直接在flag.Parse里面就结束了.
@@ -105,8 +107,17 @@ func main() {
 	}
 
 	var err error
+
+	if *stdinPtr {
+		inputReader := bufio.NewReader(os.Stdin)
+		if *dataPtr, err = inputReader.ReadString('\n'); err != nil {
+			log.Printf("inputReader.ReadString, err=%v", err)
+			os.Exit(100)
+		}
+	}
+
 	if GlobalConfigData, err = calcConfigData(*dataPtr); err != nil {
-		log.Println(fmt.Sprintf("calcConfigData, err=%v", err))
+		log.Printf("calcConfigData, err=%v", err)
 		os.Exit(100)
 	}
 
@@ -116,7 +127,7 @@ func main() {
 
 	hostKey, err := ssh.ParsePrivateKey([]byte(GlobalConfigData.HostKey))
 	if err != nil {
-		log.Println(fmt.Sprintf("ParsePrivateKey, err=%v", err))
+		log.Printf("ParsePrivateKey, err=%v", err)
 		os.Exit(100)
 	}
 
@@ -165,7 +176,7 @@ func main() {
 	log.Printf("listening on %s:%s", IPAddress, Port)*/
 	listener, err := net.Listen("tcp4", GlobalConfigData.Address)
 	if err != nil {
-		log.Println(fmt.Sprintf("Listen, Address=%v, err=%v", GlobalConfigData.Address, err))
+		log.Printf("Listen, Address=%v, err=%v", GlobalConfigData.Address, err)
 		os.Exit(100)
 	}
 
@@ -173,7 +184,7 @@ func main() {
 		tcpConn, err := listener.Accept()
 		if err != nil {
 			//log.Printf("failed to accept incoming connection (%s)", err)
-			log.Println(fmt.Sprintf("listener.Accept, err=%v", err))
+			log.Printf("listener.Accept, err=%v", err)
 			continue
 		}
 		// Before use, a handshake must be performed on the incoming net.Conn.
@@ -181,13 +192,13 @@ func main() {
 		sshConn, chans, reqs, err := ssh.NewServerConn(tcpConn, GlobalSshServerConfig)
 		if err != nil {
 			//log.Printf("failed to handshake (%s)", err)
-			log.Println(fmt.Sprintf("ssh.NewServerConn, err=%v", err))
+			log.Printf("ssh.NewServerConn, err=%v", err)
 			continue
 		}
 
 		// Check remote address
 		//log.Printf("new connection from %s (%s)", sshConn.RemoteAddr(), sshConn.ClientVersion())
-		log.Println(fmt.Sprintf("new connection from %s (%s)", sshConn.RemoteAddr(), sshConn.ClientVersion()))
+		log.Printf("new connection from %s (%s)", sshConn.RemoteAddr(), sshConn.ClientVersion())
 
 		// Print incoming out-of-band Requests
 		go handleRequests(reqs)
