@@ -2,6 +2,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"flag"
@@ -11,6 +12,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"strconv"
 	"sync"
 	"syscall"
 	"unsafe"
@@ -323,6 +325,8 @@ func handleChannels(chans <-chan ssh.NewChannel) {
 					w, h := parseDims(req.Payload)
 					SetWinsize(f.Fd(), w, h)
 					continue //no response
+				case "env":
+					log.Printf("%v, %v, %v", req.Type, req.WantReply, parseSshRequestPayload_obsolete(req.Payload))
 				}
 
 				if !ok {
@@ -333,6 +337,36 @@ func handleChannels(chans <-chan ssh.NewChannel) {
 			}
 		}(requests)
 	}
+}
+
+//parseSshRequestPayload_obsolete 我原本想写一个通用解析函数,然后发现"并非所有类型都是一个解析逻辑",比如"pty-req"就不是这个逻辑.
+func parseSshRequestPayload_obsolete(data []byte) []string {
+	bytes2int := func(byteSlice []byte) int {
+		var i int32
+		binary.Read(bytes.NewBuffer(byteSlice), binary.BigEndian, &i)
+		return int(i)
+	}
+	strSlice := make([]string, 0)
+	for i := 0; i < len(data); {
+		sLen := bytes2int(data[i : i+4])
+		i += 4
+		strSlice = append(strSlice, string(data[i:i+sLen]))
+		i += sLen
+	}
+	return strSlice
+}
+
+//tryShowData 和 parseSshRequestPayload_obsolete 的作用差不多.
+func tryShowData(data []byte) string {
+	message := ""
+	for _, b := range data {
+		if 32 <= b && b <= 126 {
+			message += string(b)
+		} else {
+			message += "<" + strconv.Itoa(int(b)) + ">"
+		}
+	}
+	return message
 }
 
 // =======================
