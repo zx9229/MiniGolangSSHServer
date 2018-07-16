@@ -2,9 +2,9 @@
 package main
 
 import (
-	"encoding/base64"
 	"encoding/binary"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -19,6 +19,7 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+/*
 // Configuration variables
 var (
 	defaultShell = "sh" // Shell used if the SHELL environment variable isn't set
@@ -43,12 +44,35 @@ AAAEDJR51JvnXwYB6ZDMIHqtE1ke12AfQ/T0Fc5OZ5FOmiRpvDEGj/dBP6ATdHZTSbvWAm
 		ServerVersion:     "",
 		PublicKeyCallback: publicKeyCallback,
 	}
+)*/
+
+var (
+	GlobalConfigData      *ConfigData
+	GlobalSshServerConfig *ssh.ServerConfig
 )
 
 // An SSH server is represented by a ServerConfig, which holds
 // certificate details and handles authentication of ServerConns.
 
 func main() {
+	helpPtr := flag.Bool("help", false, "show this help")
+	dataPtr := flag.String("base64", "", "base64 encoding data of config")
+	flag.Parse()
+
+	if *helpPtr {
+		flag.Usage()
+		fmt.Println(exampleConfigData())
+		os.Exit(0)
+	}
+
+	var err error
+	if GlobalConfigData, err = calcConfigData(*dataPtr); err != nil {
+		log.Println(err)
+		os.Exit(100)
+	}
+
+	GlobalSshServerConfig = GlobalConfigData.sshServerConfig()
+	GlobalSshServerConfig.PasswordCallback = tmpPasswordCallback
 
 	//sshServerConfig =
 
@@ -59,7 +83,7 @@ func main() {
 		log.Fatal("Failed to load private key (./id_rsa)")
 	}
 	*/
-	var IPAddress, Port string
+	/*var IPAddress, Port string
 
 	if len(os.Args) == 2 {
 		IPAddress = "localhost"
@@ -88,7 +112,13 @@ func main() {
 	}
 
 	// Accept all connections
-	log.Printf("listening on %s:%s", IPAddress, Port)
+	log.Printf("listening on %s:%s", IPAddress, Port)*/
+	listener, err := net.Listen("tcp4", GlobalConfigData.Address)
+	if err != nil {
+		log.Println(fmt.Sprintf("net.Listen fail, Address=%v, err=%v", GlobalConfigData.Address, err))
+		os.Exit(100)
+	}
+
 	for {
 		tcpConn, err := listener.Accept()
 		if err != nil {
@@ -96,7 +126,8 @@ func main() {
 			continue
 		}
 		// Before use, a handshake must be performed on the incoming net.Conn.
-		sshConn, chans, reqs, err := ssh.NewServerConn(tcpConn, sshServerConfig)
+		//sshConn, chans, reqs, err := ssh.NewServerConn(tcpConn, sshServerConfig)
+		sshConn, chans, reqs, err := ssh.NewServerConn(tcpConn, GlobalSshServerConfig)
 		if err != nil {
 			log.Printf("failed to handshake (%s)", err)
 			continue
@@ -162,7 +193,8 @@ func handleChannels(chans <-chan ssh.NewChannel) {
 		var shell string
 		shell = os.Getenv("SHELL")
 		if shell == "" {
-			shell = defaultShell
+			//shell = defaultShell
+			shell = GlobalConfigData.DefaultShell
 		}
 
 		// Sessions have out-of-band requests such as "shell", "pty-req" and "env"
@@ -276,6 +308,7 @@ func SetWinsize(fd uintptr, w, h uint32) {
 	syscall.Syscall(syscall.SYS_IOCTL, fd, uintptr(syscall.TIOCSWINSZ), uintptr(unsafe.Pointer(ws)))
 }
 
+/*
 // publicKeyCallback handles SSH key-based authentication
 // This function is largely based off of the code in this post: https://lukevers.com/2016/05/01/ssh-as-authentication-for-web-applications
 func publicKeyCallback(remoteConn ssh.ConnMetadata, remoteKey ssh.PublicKey) (*ssh.Permissions, error) {
@@ -331,4 +364,29 @@ func publicKeyCallback(remoteConn ssh.ConnMetadata, remoteKey ssh.PublicKey) (*s
 	}
 
 	return nil, nil
+}*/
+
+func tmpPasswordCallback(remoteConn ssh.ConnMetadata, password []byte) (p *ssh.Permissions, err error) {
+	fmt.Println("Trying to auth user " + remoteConn.User())
+
+	for range "1" {
+		if GlobalConfigData.UserPwds == nil {
+			err = errors.New("User does not exist")
+			log.Println(err)
+			break
+		}
+		curPwd, isOk := GlobalConfigData.UserPwds[remoteConn.User()]
+		if !isOk {
+			err = errors.New("User does not exist")
+			log.Println(err)
+			break
+		}
+		if curPwd != string(password) {
+			err = errors.New("Incorrect password")
+			log.Println(err)
+			break
+		}
+	}
+
+	return
 }
