@@ -20,3 +20,16 @@ go get -u -v golang.org/x/net
 ```
 CGO_ENABLED=0 go build -a -installsuffix cgo .
 ```
+
+## 使用说明  
+1. 保存帮助信息到`/tmp/cfg.json`文件。  
+```
+./MiniGolangSSHServer -h > /tmp/cfg.json  2>&1
+```
+2. 修改`/tmp/cfg.json`文件，仅保留json字符串。  
+3. 修改json字符串到自己想要的配置。  
+4. 用base64加密配置，并将加密字符串送给程序。  
+```
+data=$(cat /tmp/cfg.json | base64 | sed ':a;N;s/\n//g;ta')
+./MiniGolangSSHServer -base64=$data
+```

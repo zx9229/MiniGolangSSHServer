@@ -16,6 +16,7 @@ type ConfigData struct {
 	Address       string            //例如  0.0.0.0:2222
 	DefaultShell  string            //sh
 	UserPwds      map[string]string //用户名密码
+	HostKey       string            //如果没有它,会 failed to handshake (ssh: server has no host keys)
 }
 
 func calcConfigData(s string) (cfg *ConfigData, err error) {

@@ -49,6 +49,35 @@ AAAEDJR51JvnXwYB6ZDMIHqtE1ke12AfQ/T0Fc5OZ5FOmiRpvDEGj/dBP6ATdHZTSbvWAm
 var (
 	GlobalConfigData      *ConfigData
 	GlobalSshServerConfig *ssh.ServerConfig
+	HardCodedHostKey      = `-----BEGIN RSA PRIVATE KEY-----
+MIIEoAIBAAKCAQEAkiUqO6yn+UKgQmUvrnv92xsDx8wteFlJeHG5GQUK5fx2gOO2
+ZVomv/+ko2lNBtlVNAnjn1jlBRZnKSWs9gpIi2gcjx3ppWp8Ck4m7Eu7vxa/PPU9
+EAQ9o0uxGgJE+62wZqPKr3ufr1oCokCWqPBqKW4Qh8Mvhb5Sr9ZGvtygftS0jUMA
+25U/qsYV1udoxRkLeD13SRppXPNJLTMTIjSTdvEdKmZfmKM4GGicnkS4JvrR9KpM
+CSlOkz6NCW0UBMg45zQ3Kl8qLu5XG4ibsdaMwCnc/ASJzrwUvo0XZ00eo1wNEdHx
+RIU6vqtdD1f9lLotYNAaYB6VbkX6lzL+mj1bfwIBIwKCAQA2SFGD4QswsljINDZI
+H2zq+2fN3h+EeO9nQC7Ox1vRxCwD/M637kjoOmG5CdrIB5Ss7bryCxM8Z2glOeEo
+L7SLjRHsA8vPudZM+HTbbJYxCHLqwX0Uk9xhOV8JqRJO2hzy7GE53XXTapNDlFU3
+bz1f2GyKMo3+eeQyrqyQCM3l9qwPjJ1QhO0gncsjAeS/wYkRuxooZCdssSK+hrCs
+Ts/OWsvHUU8gjJKuUmEk+e57A5IVlp5WUDAzj4k93X6NUn1wexaCMM5A/M9mK0kJ
+4RKCZ8M7w2XPBF0RES7neUUZfsm/QEif5/wpWng2fywKIRjGCCngzxiDo1BerPeR
+MstzAoGBAMGYvaUPuHr15HSMyuxRoS4qsFBW4DoiRwueCRPEvfxsr44AFyNdD4SR
+IsSt2s4G3MkGgkxg65vhaMVfTYyqoTKNWxzjyeI1eMoNLvP7XbYYqpWhPycHcR4l
+nBFDxa6LGTVKpfbP1eA5WsuSf/Xc8RmQKeV38kcTP/dtPmrf2xWLAoGBAMFAz7RB
+2Vn6m0NOUncMvZOnqRuZLIoCWS7JSTdmLEAtdH45Ed1aGTxPe760Pyz8T3+gV2kO
+oOInBJE+o9AscFIrA92s/jBeL16sgqf+VfOXLNdDt1Ctoa1Dm2B5QPEiY6Trpkqe
+yJ/umBLCvLiI0m6ny04BEm7ROqDv+4MMFJhdAoGAY5BhiBa2paMHxulSaugnAczP
+tEnvqN5trjQEqxS5eoEJ1AAL5k0d7Gfl/r/PnSgZxnhgRImdveGjmLSriivd33vl
+txYQDe+dNLZSqVyz2f4OlhhpnwskO2PMmyorJpCt4OSP3gR8nzNwhfOSQ+34Vkok
+LN6Z22j8U1zBA8OVPkcCgYAxsZR+zxqiG97IKhU0jj9ge5HihnkqzWdjzVv4TXkX
+0SyVfGOt8pjGXZTZRErCbMP8PyxreMpIyDRf3OhLeSQyYtUbvsUFH4iGDxpIdJnC
+S3HuNfvwLKXquZz7jOTQSqvolF317lDYqxEpZUZ4mDYcdEo4oTCgJyxVRQYpAxs9
+HwKBgAE/T4oHr2zspJcPCXCphZbwpx8eue4MhqVk72D+VfNm99GfITN9te8WxxhL
+puEW8ZV4pJZMKuNpICcixh9CeVUoK+W5wUczmre3+HWoBpXTkNu1Nd1EXMFPMnuK
+q1YwWb4VHBqECkkpUsyhtB3t7QycFciEDKdDIujQDHI7dXp4
+-----END RSA PRIVATE KEY-----`
+
+//对于HostKey,你可以[ssh-keygen -t rsa -f ./tmprsa]然后将[./tmprsa]文件的内容拷贝到这里来.
 )
 
 // An SSH server is represented by a ServerConfig, which holds
@@ -75,12 +104,23 @@ func main() {
 
 	var err error
 	if GlobalConfigData, err = calcConfigData(*dataPtr); err != nil {
-		log.Println(err)
+		log.Println(fmt.Sprintf("calcConfigData, err=%v", err))
+		os.Exit(100)
+	}
+
+	if len(GlobalConfigData.HostKey) == 0 {
+		GlobalConfigData.HostKey = HardCodedHostKey
+	}
+
+	hostKey, err := ssh.ParsePrivateKey([]byte(GlobalConfigData.HostKey))
+	if err != nil {
+		log.Println(fmt.Sprintf("ParsePrivateKey, err=%v", err))
 		os.Exit(100)
 	}
 
 	GlobalSshServerConfig = GlobalConfigData.sshServerConfig()
 	GlobalSshServerConfig.PasswordCallback = tmpPasswordCallback
+	GlobalSshServerConfig.AddHostKey(hostKey)
 
 	//sshServerConfig =
 
@@ -123,26 +163,29 @@ func main() {
 	log.Printf("listening on %s:%s", IPAddress, Port)*/
 	listener, err := net.Listen("tcp4", GlobalConfigData.Address)
 	if err != nil {
-		log.Println(fmt.Sprintf("net.Listen fail, Address=%v, err=%v", GlobalConfigData.Address, err))
+		log.Println(fmt.Sprintf("Listen, Address=%v, err=%v", GlobalConfigData.Address, err))
 		os.Exit(100)
 	}
 
 	for {
 		tcpConn, err := listener.Accept()
 		if err != nil {
-			log.Printf("failed to accept incoming connection (%s)", err)
+			//log.Printf("failed to accept incoming connection (%s)", err)
+			log.Println(fmt.Sprintf("listener.Accept, err=%v", err))
 			continue
 		}
 		// Before use, a handshake must be performed on the incoming net.Conn.
 		//sshConn, chans, reqs, err := ssh.NewServerConn(tcpConn, sshServerConfig)
 		sshConn, chans, reqs, err := ssh.NewServerConn(tcpConn, GlobalSshServerConfig)
 		if err != nil {
-			log.Printf("failed to handshake (%s)", err)
+			//log.Printf("failed to handshake (%s)", err)
+			log.Println(fmt.Sprintf("ssh.NewServerConn, err=%v", err))
 			continue
 		}
 
 		// Check remote address
-		log.Printf("new connection from %s (%s)", sshConn.RemoteAddr(), sshConn.ClientVersion())
+		//log.Printf("new connection from %s (%s)", sshConn.RemoteAddr(), sshConn.ClientVersion())
+		log.Println(fmt.Sprintf("new connection from %s (%s)", sshConn.RemoteAddr(), sshConn.ClientVersion()))
 
 		// Print incoming out-of-band Requests
 		go handleRequests(reqs)
@@ -375,7 +418,7 @@ func publicKeyCallback(remoteConn ssh.ConnMetadata, remoteKey ssh.PublicKey) (*s
 }*/
 
 func tmpPasswordCallback(remoteConn ssh.ConnMetadata, password []byte) (p *ssh.Permissions, err error) {
-	fmt.Println("Trying to auth user " + remoteConn.User())
+	log.Println("Trying to auth user " + remoteConn.User())
 
 	for range "1" {
 		if GlobalConfigData.UserPwds == nil {
