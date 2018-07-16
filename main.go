@@ -54,14 +54,22 @@ var (
 // An SSH server is represented by a ServerConfig, which holds
 // certificate details and handles authentication of ServerConns.
 
+func helpMessage() string {
+	LF := "\n"
+	message := ""
+	message += "show this help." + LF
+	message += LF
+	message += exampleConfigData()
+	return message
+}
+
 func main() {
-	helpPtr := flag.Bool("help", false, "show this help")
+	helpPtr := flag.Bool("help", false, helpMessage())
 	dataPtr := flag.String("base64", "", "base64 encoding data of config")
 	flag.Parse()
 
-	if *helpPtr {
+	if *helpPtr { //实际上,如果命令行参数里面有-help,应当走不到这里,直接在flag.Parse里面就结束了.
 		flag.Usage()
-		fmt.Println(exampleConfigData())
 		os.Exit(0)
 	}
 
